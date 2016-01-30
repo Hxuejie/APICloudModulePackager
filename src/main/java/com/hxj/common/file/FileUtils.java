@@ -2,10 +2,14 @@ package com.hxj.common.file;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.hxj.common.text.StringUtils;
 
 /**
  * 文件工具类
@@ -14,6 +18,8 @@ import java.io.IOException;
  */
 public class FileUtils {
 
+	private static final Logger	log	= LoggerFactory.getLogger(FileUtils.class);
+
 	/**
 	 * 删除文件夹
 	 * 
@@ -21,30 +27,32 @@ public class FileUtils {
 	 * @return 返回删除结果：true成功,false失败
 	 */
 	public static boolean deleteDir(File dir) {
-		if (!isFileExists(dir) || !dir.isDirectory()) {
+		if (!isExists(dir) || !dir.isDirectory()) {
 			return false;
 		}
 		// delete files
 		boolean result = deleteDirFiles(dir);
 		// delete dir
+		log.debug("delete dir: {}", dir);
 		return dir.delete() & result;
 	}
 
 	/**
 	 * 删除目录下的所有文件
 	 * 
-	 * @param dir
+	 * @param file
 	 * @return 返回删除结果：true成功,false失败
 	 */
-	public static boolean deleteDirFiles(File dir) {
-		if (!isFileExists(dir)) {
+	public static boolean deleteDirFiles(File file) {
+		if (!isExists(file)) {
 			return false;
 		}
-		if (dir.isFile()) {
-			return dir.delete();
+		if (file.isFile()) {
+			log.debug("delete file:{}", file);
+			return file.delete();
 		}
 		boolean result = true;
-		File[] files = dir.listFiles();
+		File[] files = file.listFiles();
 		for (File f : files) {
 			result &= deleteDirFiles(f);
 		}
@@ -59,14 +67,18 @@ public class FileUtils {
 	 * @throws IOException
 	 */
 	public static void copyFile(File src, File dst) throws IOException {
-		if (!isFileExists(src)) {
+		if (!isExists(src)) {
 			return;
 		}
-		if (!isFileExists(dst)) {
+		if (!isExists(dst)) {
 			if (!dst.createNewFile()) {
 				// create fail
+				log.error("create target file fail: {}", dst);
 				return;
 			}
+		}
+		if (log.isDebugEnabled()) {
+			log.debug("copy file: {} --> {}", src, dst);
 		}
 		FileReader fr = null;
 		FileWriter fw = null;
@@ -81,6 +93,7 @@ public class FileUtils {
 			fw.flush();
 		} catch (Exception e) {
 			e.printStackTrace();
+			log.error("copy fail", e);
 			throw new IOException(e);
 		} finally {
 			if (!(closeIO(fr) & closeIO(fw))) {
@@ -89,9 +102,19 @@ public class FileUtils {
 		}
 	}
 
+	/**
+	 * 写字符串到文件
+	 * 
+	 * @param file
+	 * @param str
+	 * @throws IOException
+	 */
 	public static void writeString(File file, String str) throws IOException {
-		if (!isFileExists(file) || str == null) {
+		if (!isExists(file) || str == null) {
 			return;
+		}
+		if (log.isDebugEnabled()) {
+			log.debug("write string to file: {} --> {}", str, file);
 		}
 		FileWriter fw = null;
 		try {
@@ -100,6 +123,7 @@ public class FileUtils {
 			fw.flush();
 		} catch (Exception e) {
 			e.printStackTrace();
+			log.error("write fail", e);
 			throw new IOException(e);
 		} finally {
 			if (fw != null) {
@@ -109,14 +133,14 @@ public class FileUtils {
 	}
 
 	/**
-	 * 读取JSON文件
+	 * 读取文件为字符串
 	 * 
 	 * @param file
 	 * @return
 	 * @throws IOException
 	 */
-	public static String readJSONFile(File file) throws IOException {
-		if (!isFileExists(file)) {
+	public static String readFileToString(File file) throws IOException {
+		if (!isExists(file)) {
 			return "";
 		}
 		StringBuilder sb = new StringBuilder();
@@ -129,11 +153,15 @@ public class FileUtils {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+			log.error("read fail", e);
 			throw new IOException(e);
 		} finally {
 			if (fr != null) {
 				fr.close();
 			}
+		}
+		if (log.isDebugEnabled()) {
+			log.debug("read file to string: {} --> {}", file, sb.toString());
 		}
 		return sb.toString();
 	}
@@ -158,12 +186,61 @@ public class FileUtils {
 	}
 
 	/**
-	 * 检测文件是否存在(file != null && file.exists())
+	 * 检测文件/文件夹是否存在
 	 * 
 	 * @param file
 	 * @return 存在返回true,否则false
 	 */
-	private static boolean isFileExists(File file) {
+	public static boolean isExists(File file) {
 		return file != null && file.exists();
 	}
+
+	/**
+	 * 检测文件夹是否存在
+	 * 
+	 * @param dir
+	 * @return 存在返回true,否则false
+	 */
+	public static boolean isDirExists(File dir) {
+		return isExists(dir) && dir.isDirectory();
+	}
+
+	/**
+	 * 检测文件夹是否存在
+	 * 
+	 * @param path 文件夹路径
+	 * @return 存在返回true,否则false
+	 */
+	public static boolean isDirExists(String path) {
+		if (StringUtils.isEmpty(path)) {
+			return false;
+		}
+		File dir = new File(path);
+		return isDirExists(dir);
+	}
+
+	/**
+	 * 检测文件是否存在
+	 * 
+	 * @param file
+	 * @return 存在返回true,否则false
+	 */
+	public static boolean isFileExists(File file) {
+		return isExists(file) && file.isFile();
+	}
+
+	/**
+	 * 检测文件是否存在
+	 * 
+	 * @param path 文件路径
+	 * @return 存在返回true,否则false
+	 */
+	public static boolean isFileExists(String path) {
+		if (StringUtils.isEmpty(path)) {
+			return false;
+		}
+		File file = new File(path);
+		return isFileExists(file);
+	}
+
 }
